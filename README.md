@@ -20,7 +20,7 @@ This project leverages a **pretrained ReDimNet-b0** model and enhances speaker e
 
 Your dataset should follow the structure below:
 
-dataset/ ├── train/ # Known speakers used for training │ ├── speaker_01/ │ │ ├── file1.wav │ │ └── ... │ └── speaker_N/ ├── valid/ # Validation set (also known speakers) │ ├── speaker_01/ │ │ ├── file1.wav │ │ └── ... │ └── speaker_M/ ├── outloader/ # Speakers NOT in training, used for open-set tuning │ ├── unknown_01/ │ │ ├── file1.wav │ │ └── ... │ └── unknown_K/ └── test/ # Mixed known and unknown speakers ├── speaker_01/ ├── speaker_02/ ├── unknown_01/ └── unknown_02/\
+<pre lang="markdown"> ``` dataset/ ├── train/ │ ├── speaker_01/ │ │ ├── file1.wav │ │ └── ... │ └── speaker_N/ ├── valid/ │ ├── speaker_01/ │ │ ├── file1.wav │ │ └── ... │ └── speaker_M/ ├── outloader/ │ ├── unknown_01/ │ │ ├── file1.wav │ │ └── ... │ └── unknown_K/ └── test/ ├── speaker_01/ ├── speaker_02/ ├── unknown_01/ └── unknown_02/ ``` </pre>
 
 ![image](https://github.com/user-attachments/assets/422c8ff5-47a4-4f0d-b47d-e709b5685baa)
 
