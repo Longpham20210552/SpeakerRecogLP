@@ -20,7 +20,28 @@ This project leverages a **pretrained ReDimNet-b0** model and enhances speaker e
 
 Your dataset should follow the structure below:
 
-<pre lang="markdown"> ``` dataset/ ├── train/ │ ├── speaker_01/ │ │ ├── file1.wav │ │ └── ... │ └── speaker_N/ ├── valid/ │ ├── speaker_01/ │ │ ├── file1.wav │ │ └── ... │ └── speaker_M/ ├── outloader/ │ ├── unknown_01/ │ │ ├── file1.wav │ │ └── ... │ └── unknown_K/ └── test/ ├── speaker_01/ ├── speaker_02/ ├── unknown_01/ └── unknown_02/ ``` </pre>
+```
+dataset/
+├── train/
+│   ├── speaker_01/
+│   │   ├── file1.wav
+│   │   └── file2.wav
+│   └── speaker_02/
+│       ├── file1.wav
+│       └── file2.wav
+├── valid/
+│   ├── speaker_01/
+│   └── speaker_02/
+├── outloader/
+│   ├── unknown_01/
+│   └── unknown_02/
+└── test/
+    ├── speaker_01/
+    ├── speaker_02/
+    ├── unknown_01/
+    └── unknown_02/
+```
+Visualization of testing data in new embedding space (using t-SNE)
 
 ![image](https://github.com/user-attachments/assets/422c8ff5-47a4-4f0d-b47d-e709b5685baa)
 
