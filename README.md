@@ -7,16 +7,16 @@ This project leverages a **pretrained ReDimNet-b0** model and enhances speaker e
 
 ---
 
-## 🎯 Highlights
+## Highlights
 
-- 🔁 Fine-tuned a pretrained **ReDimNet-b0** speaker model
-- 🔄 Integrated **SRPL** to adapt embedding space via metric learning
-- 🧪 Achieved **98.1%** accuracy on a 10-class open-set from **TIMIT (DR6)**
-- 🇻🇳 Achieved **92.5%** on a 5-class **Vietnamese noise-augmented open-set**
+- Fine-tuned a pretrained **ReDimNet-b0** speaker model
+- Integrated **SRPL** to adapt embedding space via metric learning
+- Achieved **98.1%** accuracy on a 10-class open-set from **TIMIT (DR6)**
+- Achieved **92.5%** on a 5-class **Vietnamese noise-augmented open-set**
 
 ---
 
-## 📁 Dataset Structure
+## Dataset Structure
 
 Your dataset should follow the structure below:
 
