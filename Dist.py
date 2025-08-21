@@ -3,6 +3,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import numpy as np
 
+# Khởi tạo các điểm RP, tính toán khoảng cách l2, dot phục vụ ARPLogits và ARPLoss
 class Dist(nn.Module):
     def __init__(self, num_classes=10, num_centers=1, feat_dim=2, init='random'):
         super(Dist, self).__init__()

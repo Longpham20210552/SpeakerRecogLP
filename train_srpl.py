@@ -15,6 +15,7 @@ from redimnet.model import ReDimNetWrap
 from redimnet.hubconf import ReDimNet 
 from SRPL import ARPLoss
 import SRPL_evaluation as evaluation
+
 def load_dataset():
     # Tải trực tiếp từ file đã chia sẵn
     train_DB = read_feats_structure_train(c.TRAIN_FEAT_DIR)
@@ -32,7 +33,7 @@ def load_dataset():
     
     train_dataset = DvectorDataset(DB=train_DB, loader=file_loader, transform=transform, spk_to_idx=spk_to_idx)
     valid_dataset = DvectorDataset(DB=valid_DB, loader=file_loader, transform=transform_T, spk_to_idx=spk_to_idx)
-    
+
     n_classes = len(speaker_list) # Số người tham gia training
     
     print(f'\nTraining set: {len(train_DB)} samples')
@@ -96,33 +97,39 @@ def main():
     
     embedding_size = 128    # Kích thước của D-vectors
     start = 1               # Vòng lặp bắt đầu 
-    n_epochs = 100          # Training kéo dài 30 epoch
+    n_epochs = 50          # Training kéo dài 30 epoch
     end = start + n_epochs  
-    lr = 5e-3        # Learning_rate = 0.12
+    lr = 1e-3        # Learning_rate = 0.12
     wd = 1e-4               # Điều khoản phạt hàm mất mát
     optimizer_type = 'adam'  # ex) sgd, adam, adagrad; chọn SGD làm phương pháp tối ưu
     batch_size = 16         # Kích thước batch training 
     valid_batch_size = 16   # Kích thước batch validation
     use_shuffle = True      # Có xáo trộn dữ liệu không?
     train_dataset, valid_dataset, n_classes = load_dataset()  # Tải tập dữ liệu
+    spk_to_idx = train_dataset.spk_to_idx
+    for speaker_id, idx in sorted(spk_to_idx.items(), key=lambda x: x[1]):
+        print(f"{idx}: {speaker_id}")
     out_dataset,_,_ = load_out_dataset()
     print('\nNumber of classes (speakers):\n{}\n'.format(n_classes))   # Số lượng người training: 233
-    log_dir = 'model_saved_DATN_SRPL' # Lưu checkpoints sau mỗi epoch
-    log_dir_2 = 'model_saved_05_lan3'
+    log_dir = 'model_saved_LPdata_DATN_SRPL' # Lưu checkpoints sau mỗi epoch
+    log_dir_2 = 'model_save_split_1'
     if not os.path.exists(log_dir):
         os.makedirs(log_dir)
         
     # Khởi tạo mô hình và tham số ban đầu
     #model = background_resnet(embedding_size=embedding_size, num_classes=n_classes)
     backbone = ReDimNet('b0')
+    #checkpoint = torch.load('model_saved_SRPL_580/checkpoint_epoch_' + str(37) + '.pth')
+    # Nạp tham số vào mô hình
     model = ReDimNetWithClassifier(backbone, num_classes = n_classes)
-    """
+    #model.load_state_dict(checkpoint['model_state_dict'])
+    '''
     # Tải checkpoint
-    checkpoint = torch.load(log_dir_2 + '/checkpoint_' + str(36) + '.pth')
+    checkpoint = torch.load(log_dir_2 + '/checkpoint_epoch_' + str(47) + '.pth')
 
     # Nạp tham số vào mô hình
-    model.load_state_dict(checkpoint['state_dict'])
-    """
+    model.load_state_dict(checkpoint['model_state_dict'])
+    '''
     model.cuda()  # Sử dụng GPU
     
     # Định nghĩa hàm mất mát, hàm tối ưu, và hàm điều chỉnh học trong quá trình training
@@ -131,11 +138,12 @@ def main():
         weight_pl = 0.1,
         feat_dim = 96,
         temp = 1 ,
-        num_classes = 10
+        num_classes = 5
     )
+    #criterion.load_state_dict(checkpoint['criterion_state_dict']) 
     optimizer = create_optimizer(optimizer_type, model, lr, wd) # Sử dụng hàm tối ưu
-    scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min', patience=7, min_lr=1e-10, verbose=1)  # Giảm lr sau 1 số epohất định nếu không có cải thiện về giá trị hàm mất mát
-    
+    scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min', patience=7, min_lr=1e-10, verbose=1, )  # Giảm lr sau 1 số epohất định nếu không có cải thiện về giá trị hàm mất mát
+
     # Tạo các data loader cho các tập dữ liệu train và valid, sử dụng xáo trộn dữ liệu
     
     # DataLoader cho train → dùng sampler cho cân bằng known/unknown
@@ -155,16 +163,20 @@ def main():
     avg_valid_losses = []
     
     torch.cuda.empty_cache()
-    results_history = {'train_loss': [], 'test_metrics': []}
+    results_history = {
+        'train_loss': [],
+        'train_acc': [],
+        'valid_loss': [],
+        'test_metrics': []
+    }
     for epoch in range(start, end):
-
-        train_loss, accuracy = train(model, criterion, optimizer, train_loader, epoch, use_cuda)
+        train_loss, train_acc = train(model, criterion, optimizer, train_loader, epoch, use_cuda)
         results_history['train_loss'].append(train_loss)
+        results_history['train_acc'].append(train_acc)
         print(f"Training Loss: {train_loss:.6f}")
-        print(f"Training accuracy:{accuracy:.6f}")
-    
-        # Kiểm tra
+        print(f"Training Accuracy: {train_acc:.6f}")
         valid_loss, test_metrics = validate(model, criterion, valid_loader, out_loader, epoch, use_cuda)
+        results_history['valid_loss'].append(valid_loss)  # .item() để lấy giá trị float
         results_history['test_metrics'].append(test_metrics)
         print(f"Test Metrics: {test_metrics}")
         scheduler.step(valid_loss, epoch)
@@ -176,8 +188,10 @@ def main():
             'criterion_state_dict': criterion.state_dict(),
             'train_loss': train_loss,
             'test_metrics': test_metrics,
+            'train_acc': train_acc,
+            'valid_loss': valid_loss
         }
-        torch.save(checkpoint, f"model_saved_SRPL_580/checkpoint_epoch_{epoch}.pth")
+        torch.save(checkpoint, f"model_save_normalize/checkpoint_epoch_{epoch}.pth")
     
             # Hiển thị thông tin sau mỗi epoch
         print("-" * 40)
@@ -212,8 +226,8 @@ def train(model, criterion, optimizer, train_loader, epoch, use_cuda):
         if use_cuda:
             inputs = inputs.cuda()
             targets = targets.cuda()
-        x, y = model(inputs)
-        logits, loss = criterion(x,y,targets)
+        x, y, _ = model(inputs)
+        logits, loss = criterion(x,targets)
         predictions = logits.data.max(1)[1]
         n_total += targets.size(0)
         n_correct += (predictions == targets.data).sum()
@@ -240,32 +254,34 @@ def train(model, criterion, optimizer, train_loader, epoch, use_cuda):
                      
 def validate(model, criterion, val_loader, out_loader, epoch, use_cuda):
     
-    # Khởi tạo các biến tính độ chính xác
-    n_correct, n_total = 0, 0
-    
-    # Chuyển model sang chế độ đánh giá
     model.eval()
     _pred_k, _pred_u, _labels = [], [], []
+
+    n_correct, n_total = 0, 0
+    total_loss = 0.0
+    n_batches = 0
+
     with torch.no_grad():
-        end = time.time()
         for i, (data) in enumerate(val_loader):
             inputs, targets = data
-            #current_sample = inputs.size(0)  # batch size
             
             if use_cuda:
                 inputs = inputs.cuda()
                 targets = targets.cuda()
-            
-            with torch.set_grad_enabled(False):
-                x, y = model(inputs)
-                logits, _ = criterion(x, y)
-                predictions = logits.data.max(1)[1]
-                n_total += targets.size(0)
-                n_correct += (predictions == targets.data).sum()
-            
-                _pred_k.append(logits.data.cpu().numpy())
-                _labels.append(targets.data.cpu().numpy())
-            
+
+            x, y, _ = model(inputs)
+            logits, loss = criterion(x, targets)
+
+            predictions = logits.data.max(1)[1]
+            n_total += targets.size(0)
+            n_correct += (predictions == targets.data).sum()
+
+            _pred_k.append(logits.data.cpu().numpy())
+            _labels.append(targets.data.cpu().numpy())
+
+            total_loss += loss.item()
+            n_batches += 1
+
         for batch_idx, (data) in enumerate(out_loader):
             inputs, targets = data
         
@@ -273,30 +289,26 @@ def validate(model, criterion, val_loader, out_loader, epoch, use_cuda):
                 inputs = inputs.cuda()
                 targets = targets.cuda()
 
-            with torch.set_grad_enabled(False):
-                x, y = model(inputs)
-                # x, y = net(data, return_feature=True)
-                logits, loss = criterion(x, y)
-                _pred_u.append(logits.data.cpu().numpy())
-            # Tính toán độ chính xác
+            x, y, _ = model(inputs)
+            logits, _ = criterion(x)
+            _pred_u.append(logits.data.cpu().numpy())
+
     acc = float(n_correct) * 100. / float(n_total)
-    print('Acc: {:.5f}'.format(acc))
+    print('Valid acc: {:.5f}'.format(acc))
 
     _pred_k = np.concatenate(_pred_k, 0)
     _pred_u = np.concatenate(_pred_u, 0)
     _labels = np.concatenate(_labels, 0)
-    
-    # Out-of-Distribution detction evaluation
+
     x1, x2 = np.max(_pred_k, axis=1), np.max(_pred_u, axis=1)
     results = evaluation.metric_ood(x1, x2)['Bas']
-    
-    # OSCR
-    _oscr_socre = evaluation.compute_oscr(_pred_k, _pred_u, _labels)
+    _oscr_score = evaluation.compute_oscr(_pred_k, _pred_u, _labels)
 
     results['ACC'] = acc
-    results['OSCR'] = _oscr_socre * 100.
+    results['OSCR'] = _oscr_score * 100.
 
-    return loss, results
+    avg_loss = total_loss / n_batches
+    return avg_loss, results
 
 class AverageMeter(object):
     # Lớp khởi tạo và lưu trữ các giá trị trung bình
@@ -331,33 +343,46 @@ def create_optimizer(optimizer, model, new_lr, wd):
     return optimizer
 
 def visualize_metrics(results_history):
-    # Vẽ đồ thị hàm mất mát
+    epochs = range(1, len(results_history['train_loss']) + 1)
+    # Extract các metric từ results_history
+    train_loss = results_history['train_loss']
+    valid_loss = results_history['valid_loss']
+    train_acc = results_history['train_acc']
+    test_acc = [m['ACC'] for m in results_history['test_metrics']]
+    test_oscr = [m['OSCR'] for m in results_history['test_metrics']]
+
     plt.figure(figsize=(12, 5))
 
-    # Đồ thị hàm mất mát train
+    # Plot 1: Train & Validation Loss
     plt.subplot(1, 2, 1)
-    plt.plot(results_history['train_loss'], label='Train Loss', color='blue')
-    plt.title('Training Loss')
+    plt.plot(epochs, train_loss, label='Train Loss', color='blue')
+    plt.plot(epochs, valid_loss, label='Validation Loss', color='orange')
+    best_epoch = int(np.argmin(valid_loss))
+    best_val_loss = valid_loss[best_epoch]
+    plt.scatter(best_epoch + 1, best_val_loss, color='red', label=f'Best Val Loss (Epoch {best_epoch + 1})')
+    plt.annotate(f'{best_val_loss:.4f}', (best_epoch + 1, best_val_loss),
+             textcoords="offset points", xytext=(0,10), ha='center', fontsize=8)
+    plt.title('Loss per Epoch')
     plt.xlabel('Epoch')
     plt.ylabel('Loss')
     plt.legend()
     plt.grid(True)
 
-    # Đồ thị độ chính xác (ACC) và OSCR
-    test_acc = [metrics['ACC'] for metrics in results_history['test_metrics']]
-    test_oscr = [metrics['OSCR'] for metrics in results_history['test_metrics']]
-    
+    # Plot 2: ACC & OSCR
     plt.subplot(1, 2, 2)
-    plt.plot(test_acc, label='Accuracy (ACC)', color='green')
-    plt.plot(test_oscr, label='OSCR', color='red')
-    plt.title('Test Metrics')
+    plt.plot(epochs, train_acc, label='Train ACC', color='purple')
+    plt.plot(epochs, test_acc, label='Validation ACC', color='green')
+    plt.plot(epochs, test_oscr, label='OSCR', color='red')
+    plt.title('Accuracy & OSCR')
     plt.xlabel('Epoch')
     plt.ylabel('Percentage')
+    plt.ylim(0, 100) 
     plt.legend()
     plt.grid(True)
 
     plt.tight_layout()
-    plt.show()
+    plt.savefig("training_split1_newmetric.png")
+    plt.close()
 
 if __name__ == '__main__':
     main()
